@@ -1,5 +1,6 @@
 async function setup() {
-    const patchExportURL = "export/patch.export.json";
+    const synthURL = 'export/patch.export.json';
+    const effectURL = 'export/rnbo.platereverb.json';
 
     // Create AudioContext
     const WAContext = window.AudioContext || window.webkitAudioContext;
@@ -10,26 +11,26 @@ async function setup() {
     outputNode.connect(context.destination);
     
     // Fetch the exported patcher
-    let response, patcher;
+    let synthResponse, synthPatcher;
     try {
-        response = await fetch(patchExportURL);
-        patcher = await response.json();
+        synthResponse = await fetch(synthURL);
+        synthPatcher = await response.json();
     
         if (!window.RNBO) {
             // Load RNBO script dynamically
             // Note that you can skip this by knowing the RNBO version of your patch
             // beforehand and just include it using a <script> tag
-            await loadRNBOScript(patcher.desc.meta.rnboversion);
+            await loadRNBOScript(synthPatcher.desc.meta.rnboversion);
         }
 
     } catch (err) {
         const errorContext = {
             error: err
         };
-        if (response && (response.status >= 300 || response.status < 200)) {
+        if (synthResponse && (synthResponse.status >= 300 || synthResponse.status < 200)) {
             errorContext.header = `Couldn't load patcher export bundle`,
             errorContext.description = `Check app.js to see what file it's trying to load. Currently it's` +
-            ` trying to load "${patchExportURL}". If that doesn't` + 
+            ` trying to load "${synthURL}". If that doesn't` + 
             ` match the name of the file you exported from RNBO, modify` + 
             ` patchExportURL in app.js.`;
         }
@@ -41,6 +42,30 @@ async function setup() {
         return;
     }
     
+    let effectResponse, effectPatcher;
+    try {
+        effectResponse = await fetch(effectURL);
+        effectPatcher = await response.json();
+
+    } catch (err) {
+        const errorContext = {
+            error: err
+        };
+        if (effectResponse && (effectResponse.status >= 300 || effectResponse.status < 200)) {
+            errorContext.header = `Couldn't load patcher export bundle`,
+            errorContext.description = `Check app.js to see what file it's trying to load. Currently it's` +
+            ` trying to load "${effectURL}". If that doesn't` + 
+            ` match the name of the file you exported from RNBO, modify` + 
+            ` patchExportURL in app.js.`;
+        }
+        if (typeof guardrails === "function") {
+            guardrails(errorContext);
+        } else {
+            throw err;
+        }
+        return;
+    }
+
     // (Optional) Fetch the dependencies
     let dependencies = [];
     try {
@@ -53,8 +78,10 @@ async function setup() {
 
     // Create the device
     let device;
+    let effectDevice;
     try {
-        device = await RNBO.createDevice({ context, patcher });
+        device = await RNBO.createDevice({ context, patcher: synthPatcher });
+        effectDevice = await RNBO.createDevice({ context, patcher: effectPatcher });
     } catch (err) {
         if (typeof guardrails === "function") {
             guardrails({ error: err });
@@ -69,7 +96,11 @@ async function setup() {
         await device.loadDataBufferDependencies(dependencies);
 
     // Connect the device to the web audio graph
-    device.node.connect(outputNode);
+    // synth and effect    
+    device.node.connect(effectDevice.node);
+    effectDevice.node.connect(outputNode);
+    // synth only
+    // device.node.connect(outputNode);
 
     // (Optional) Extract the name and rnbo version of the patcher from the description
     document.getElementById("patcher-title").innerText = (patcher.desc.meta.filename || "Unnamed Patcher") + " (v" + patcher.desc.meta.rnboversion + ")";
