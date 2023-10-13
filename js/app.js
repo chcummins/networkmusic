@@ -1,6 +1,6 @@
 async function setup() {
-    const synthURL = 'export/patch.export.json';
-    const effectURL = 'export/rnbo.platereverb.json';
+    const synthURL = "export/patch.export.json";
+    const effectURL = "export/rnbo.platereverb.json";
 
     // Create AudioContext
     const WAContext = window.AudioContext || window.webkitAudioContext;
@@ -11,23 +11,23 @@ async function setup() {
     outputNode.connect(context.destination);
     
     // Fetch the exported patcher
-    let synthResponse, synthPatcher;
+    let response, patcher;
     try {
-        synthResponse = await fetch(synthURL);
-        synthPatcher = await response.json();
+        response = await fetch(synthURL);
+        patcher = await response.json();
     
         if (!window.RNBO) {
             // Load RNBO script dynamically
             // Note that you can skip this by knowing the RNBO version of your patch
             // beforehand and just include it using a <script> tag
-            await loadRNBOScript(synthPatcher.desc.meta.rnboversion);
+            await loadRNBOScript(patcher.desc.meta.rnboversion);
         }
 
     } catch (err) {
         const errorContext = {
             error: err
         };
-        if (synthResponse && (synthResponse.status >= 300 || synthResponse.status < 200)) {
+        if (response && (response.status >= 300 || response.status < 200)) {
             errorContext.header = `Couldn't load patcher export bundle`,
             errorContext.description = `Check app.js to see what file it's trying to load. Currently it's` +
             ` trying to load "${synthURL}". If that doesn't` + 
@@ -41,11 +41,10 @@ async function setup() {
         }
         return;
     }
-    
     let effectResponse, effectPatcher;
     try {
         effectResponse = await fetch(effectURL);
-        effectPatcher = await response.json();
+        effectPatcher = await effectResponse.json();
 
     } catch (err) {
         const errorContext = {
@@ -66,21 +65,22 @@ async function setup() {
         return;
     }
 
-    // (Optional) Fetch the dependencies
-    let dependencies = [];
-    try {
-        const dependenciesResponse = await fetch("export/dependencies.json");
-        dependencies = await dependenciesResponse.json();
+    // // (Optional) Fetch the dependencies
+    // let dependencies = [];
+    // try {
+    //     const dependenciesResponse = await fetch("export/dependencies.json");
+    //     dependencies = await dependenciesResponse.json();
 
-        // Prepend "export" to any file dependenciies
-        dependencies = dependencies.map(d => d.file ? Object.assign({}, d, { file: "export/" + d.file }) : d);
-    } catch (e) {}
+    //     // Prepend "export" to any file dependenciies
+    //     dependencies = dependencies.map(d => d.file ? Object.assign({}, d, { file: "export/" + d.file }) : d);
+    //     console.log(dependencies);
+    // } catch (e) {}
 
     // Create the device
     let device;
     let effectDevice;
     try {
-        device = await RNBO.createDevice({ context, patcher: synthPatcher });
+        device = await RNBO.createDevice({ context, patcher: patcher });
         effectDevice = await RNBO.createDevice({ context, patcher: effectPatcher });
     } catch (err) {
         if (typeof guardrails === "function") {
@@ -90,23 +90,29 @@ async function setup() {
         }
         return;
     }
+    
+    // // (Optional) Load the samples
+    // if (dependencies.length)
+    //     await device.loadDataBufferDependencies(dependencies);
 
-    // (Optional) Load the samples
-    if (dependencies.length)
-        await device.loadDataBufferDependencies(dependencies);
+    // if (dependencies.length)
+    //     await effectDevice.loadDataBufferDependencies(dependencies);
 
     // Connect the device to the web audio graph
-    // synth and effect    
-    device.node.connect(effectDevice.node);
-    effectDevice.node.connect(outputNode);
+
     // synth only
     // device.node.connect(outputNode);
 
+    // synth and reverb
+    device.node.connect(effectDevice.node);
+    effectDevice.node.connect(outputNode);
+
     // (Optional) Extract the name and rnbo version of the patcher from the description
-    document.getElementById("patcher-title").innerText = (patcher.desc.meta.filename || "Unnamed Patcher") + " (v" + patcher.desc.meta.rnboversion + ")";
+    // document.getElementById("patcher-title").innerText = (patcher.desc.meta.filename || "Unnamed Patcher") + " (v" + patcher.desc.meta.rnboversion + ")";
 
     // (Optional) Automatically create sliders for the device parameters
     makeSliders(device);
+    makeSliders(effectDevice);
 
     // (Optional) Create a form to send messages to RNBO inputs
     makeInportForm(device);
