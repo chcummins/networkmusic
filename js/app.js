@@ -202,19 +202,27 @@ function makeSliders(device) {
         text.setAttribute("type", "text");
 
         // Make each slider control its parameter
-        slider.addEventListener("pointerdown", () => {
-            isDraggingSlider = true;
-        });
-        slider.addEventListener("pointerup", () => {
-            isDraggingSlider = false;
-            slider.value = param.value;
-            text.value = param.value.toFixed(1);
-        });
-        slider.addEventListener("input", () => {
-            let value = Number.parseFloat(slider.value);
-            param.value = value;
-        });
-
+        
+        if (param.name === 'mix') {
+            document.addEventListener("mousemove", (e) => {
+                console.log(`screenx ${e.screenX/20}`);
+                param.value = e.screenX/20;
+            });
+        } else {
+            slider.addEventListener("pointerdown", () => {
+                isDraggingSlider = true;
+            });
+            slider.addEventListener("pointerup", () => {
+                isDraggingSlider = false;
+                slider.value = param.value;
+                text.value = param.value.toFixed(1);
+            });
+            slider.addEventListener("input", () => {
+                let value = Number.parseFloat(slider.value);
+                param.value = value;
+            });
+        }
+        
         // Make the text box input control the parameter value as well
         text.addEventListener("keydown", (ev) => {
             if (ev.key === "Enter") {
